@@ -18,4 +18,17 @@ async function findByApiKeyHash(apiKeyHash) {
   return rows[0] || null;
 }
 
-module.exports = { create, findByApiKeyHash };
+async function getStripeCustomerId(tenantId) {
+  const { rows } = await pool.query('SELECT stripe_customer_id FROM tenants WHERE id = $1', [tenantId]);
+  return rows[0] ? rows[0].stripe_customer_id : null;
+}
+
+async function setStripeCustomerId(tenantId, customerId) {
+  const { rows } = await pool.query(
+    'UPDATE tenants SET stripe_customer_id = COALESCE(stripe_customer_id, $2) WHERE id = $1 RETURNING stripe_customer_id',
+    [tenantId, customerId]
+  );
+  return rows[0].stripe_customer_id;
+}
+
+module.exports = { create, findByApiKeyHash, getStripeCustomerId, setStripeCustomerId };
