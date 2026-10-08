@@ -2,9 +2,12 @@ const express = require('express');
 const tenantRoutes = require('./routes/tenants');
 const generateRoutes = require('./routes/generate');
 const billingRoutes = require('./routes/billing');
+const webhookRoutes = require('./routes/webhooks');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
+
+app.use('/webhooks', webhookRoutes);
 
 app.use(express.json({ limit: '10kb' }));
 
