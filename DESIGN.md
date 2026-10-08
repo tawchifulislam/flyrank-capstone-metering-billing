@@ -10,3 +10,97 @@ SaaS products need to answer three questions for every customer: how much have t
 - No invoicing, proration, or overage billing in the core build. These are stretch goals.
 - No real AI model calls. Token counts are simulated, because this service meters numbers and does not run models.
 - No frontend or dashboard UI. The API is the product.
+
+## Plans and quotas
+
+Quotas reset on the first day of each calendar month (UTC).
+
+| Plan | API calls / month | AI tokens / month |
+| --- | --- | --- |
+| Free | 1,000 | 100,000 |
+| Pro | 50,000 | 5,000,000 |
+
+Quota counts total tokens: input + cached input + output + reasoning.
+
+## Money rules
+
+- All money is stored as integer micro-dollars (1 USD = 1,000,000 micro-dollars). Floats are never used.
+- Pricing constants live in `src/config.js`:
+
+| Item | Price (micro-dollars) |
+| --- | --- |
+| API call | 1,000 per call |
+| Input token | 300,000 per 1M tokens |
+| Cached input token | 75,000 per 1M tokens |
+| Output token | 2,500,000 per 1M tokens |
+| Reasoning token | billed as output |
+
+- Cost of a request = api call price + input cost + cached input cost + (output + reasoning) cost, each category priced separately and then summed.
+- Rounding: each category is rounded up to the next whole micro-dollar once per event.
+
+## Data model
+
+```sql
+CREATE TABLE plans (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  monthly_api_call_limit INTEGER NOT NULL,
+  monthly_token_limit BIGINT NOT NULL
+);
+
+CREATE TABLE tenants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  api_key_hash TEXT NOT NULL UNIQUE,
+  plan_id TEXT NOT NULL REFERENCES plans(id) DEFAULT 'free',
+  plan_status TEXT NOT NULL DEFAULT 'active',
+  stripe_customer_id TEXT UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  stripe_subscription_id TEXT NOT NULL UNIQUE,
+  plan_id TEXT NOT NULL REFERENCES plans(id),
+  status TEXT NOT NULL,
+  current_period_start TIMESTAMPTZ,
+  current_period_end TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE usage_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  idempotency_key TEXT NOT NULL,
+  api_calls INTEGER NOT NULL DEFAULT 1,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  reasoning_tokens INTEGER NOT NULL DEFAULT 0,
+  cost_micros BIGINT NOT NULL,
+  result JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, idempotency_key)
+);
+
+CREATE INDEX idx_usage_events_tenant_created ON usage_events (tenant_id, created_at);
+
+CREATE TABLE stripe_events (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  processed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+## Tenancy rule
+
+Every query on `usage_events` and `subscriptions` filters by `tenant_id` taken from the authenticated API key, never from the request body. A tenant can never read or write another tenant's rows.
+
+## Status codes
+
+- `429 Too Many Requests`: the monthly API call or token quota is exceeded. The body names which limit was hit, and a `Retry-After` header points to the next period start.
+- `402 Payment Required`: the tenant is on a paid plan whose `plan_status` is not `active` (for example past_due or canceled).
+- `400`: invalid input or missing `Idempotency-Key`.
+- `401`: missing or invalid API key.
