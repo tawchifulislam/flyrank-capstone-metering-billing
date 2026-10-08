@@ -132,6 +132,7 @@ async function record({ tenant, idempotencyKey, body }) {
       outputTokens: payload.output_tokens,
       reasoningTokens: payload.reasoning_tokens,
       costMicros: cost.total,
+      costBreakdown: cost.breakdown,
       result,
     });
 
