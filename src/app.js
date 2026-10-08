@@ -1,5 +1,6 @@
 const express = require('express');
 const tenantRoutes = require('./routes/tenants');
+const generateRoutes = require('./routes/generate');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -11,6 +12,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/tenants', tenantRoutes);
+app.use('/generate', generateRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

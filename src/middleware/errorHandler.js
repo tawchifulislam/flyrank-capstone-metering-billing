@@ -7,6 +7,9 @@ function notFound(req, res) {
 
 function errorHandler(err, req, res, next) {
   if (err instanceof AppError) {
+    if (err.headers) {
+      res.set(err.headers);
+    }
     return res.status(err.status).json({
       error: { code: err.code, message: err.message, details: err.details },
     });
