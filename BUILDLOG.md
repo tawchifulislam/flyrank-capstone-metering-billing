@@ -25,3 +25,9 @@ An honest log of where AI helped, where it was wrong, and what I changed.
 - What I verified myself: a real test-card payment in the sandbox flipped the tenant from Free to Pro through the forwarded webhook, a second checkout returned 409, and the forged and replayed events were rejected and ignored by the signed test script.
 - Something I can explain in my own words: the webhook route is mounted before `express.json()` and uses the raw body. The signature is computed over the exact bytes Stripe sent. If JSON parsing runs first and the body is re-serialized, the bytes change and every valid signature would fail.
 - Known gaps: subscription period dates stay empty until a `customer.subscription.updated` event arrives, and events that arrive out of order are not reordered. A reconciliation job against Stripe is the stretch goal that would close this.
+
+## Phase 4: Cost rollup, packaging and docs
+
+- AI helped write `GET /usage`, the monthly rollup query, and the test that upgrades a tenant through a signed webhook and checks the totals.
+- Where the design was wrong: my first schema stored only the total `cost_micros` per usage event, so the rollup could not show a per-category breakdown that adds up exactly (rounding happens per event). I added migration 002 with four cost columns, store them when the event is created, and backfill old rows with the same constants.
+- What I verified myself: the expected totals in the test were worked out by hand first (2,876,000 + 2,501,000 + 1,001 = 5,378,001), and the breakdown sums to the same number.

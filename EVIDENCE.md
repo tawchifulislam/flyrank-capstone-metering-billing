@@ -144,7 +144,32 @@ all webhook checks passed
 
 How it works: the raw request body is verified against the `Stripe-Signature` header before anything else. A bad signature returns `400` and writes nothing. The event id is inserted into `stripe_events` (primary key) inside the same transaction as the plan update, so a replayed event hits the conflict, returns `200` and changes nothing.
 
-Still to add in Phase 4: `GET /usage` showing the new Pro limits after the upgrade.
+### Pro limits after upgrade and cost rollup (GET /usage)
+
+Command: `npm run test:usage` (upgrades a tenant to Pro with a signed Checkout webhook, then sends three billable requests that exercise every token category).
+
+```
+ok  GET /usage without an API key returns 401
+ok  Free plan limits  api_calls limit 1000, tokens limit 100000
+ok  after the Checkout webhook, GET /usage shows the Pro limits  api_calls limit 50000, tokens limit 5000000
+ok  rollup matches the pinned pricing rules  {"api_calls":3000,"input":300001,"cached_input":75000,"output_and_reasoning":5000000}
+ok  replayed request is not counted twice  api_calls used 3
+ok  total cost  5378001 micro-dollars = 5.378001 USD
+ok  another tenant sees none of this usage
+all usage checks passed
+```
+
+The three requests and their expected costs:
+
+| Request | Tokens | Cost (micro-dollars) |
+|---|---|---|
+| 1 | 1,000,000 input, 1,000,000 cached input, 1,000,000 output | 2,876,000 |
+| 2 | 500,000 output, 500,000 reasoning (billed as output) | 2,501,000 |
+| 3 | 1 input | 1,001 (1 token rounds up to 1) |
+
+Sum: 2,876,000 + 2,501,000 + 1,001 = 5,378,001. The breakdown adds up too: 3,000 calls + 300,001 input + 75,000 cached input + 5,000,000 output and reasoning = 5,378,001.
+
+Each usage event stores its cost per category at the time it is created, so the monthly rollup is a sum of stored values and never recalculates old events with new prices.
 
 ## Data model, tests and documentation
 
