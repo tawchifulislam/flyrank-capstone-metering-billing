@@ -11,7 +11,8 @@
     "test:quota": "node scripts/test-quota.js",
     "test:webhooks": "node scripts/test-webhooks.js",
     "test:usage": "node scripts/test-usage.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "test:probes": "node scripts/test-probes.js"
   },
   "repository": {
     "type": "git",

@@ -8,3 +8,4 @@ endpoints:
   - GET /usage
   - POST /billing/checkout
   - POST /webhooks/stripe
+test: docker compose exec -T app node scripts/test-probes.js
