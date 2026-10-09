@@ -31,3 +31,10 @@ An honest log of where AI helped, where it was wrong, and what I changed.
 - AI helped write `GET /usage`, the monthly rollup query, and the test that upgrades a tenant through a signed webhook and checks the totals.
 - Where the design was wrong: my first schema stored only the total `cost_micros` per usage event, so the rollup could not show a per-category breakdown that adds up exactly (rounding happens per event). I added migration 002 with four cost columns, store them when the event is created, and backfill old rows with the same constants.
 - What I verified myself: the expected totals in the test were worked out by hand first (2,876,000 + 2,501,000 + 1,001 = 5,378,001), and the breakdown sums to the same number.
+
+### Usage alerts (the background job)
+
+- The first plan had no background job. I only caught it when I compared the build against the shared requirements table in Section 12: requirement 3 asks for at least one background job with retries and a failure alert. I added usage alerts (the stretch goal) as that job.
+- AI helped write the migration, the notifier, the alert service and the test. The notifier has three modes (`ok`, `flaky`, `fail`) so I can prove the retries and the failure alert without a real email service.
+- What I checked myself: the 80% alert fires at exactly 80% (80,000 of 100,000), the 100% alert fires at 100,000 and not before, a replayed request creates no extra alert, and with the notifier down the request still returns in about 15 ms while the log shows the `ALERT` line after 3 attempts.
+- Something I can explain in my own words: the alert row is inserted first with a unique key on tenant, metric, threshold and billing period, and the job only continues if that insert created a row. That is what makes each threshold fire once per period even if several requests cross it at nearly the same time. The job starts after the database transaction commits, so a failing alert can never roll back or block a billable request.

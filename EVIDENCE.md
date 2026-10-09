@@ -177,3 +177,65 @@ Each usage event stores its cost per category at the time it is created, so the 
 - [ ] README, architecture diagram and setup instructions.
 
 Pending (Phase 4).
+
+## Background job: usage alerts
+
+Shared requirement 3: slow work off the request path, with retries and a failure alert.
+
+When a request makes a tenant reach 80% or 100% of its API call quota or token quota, a background job sends a notification. The job runs after the response is already sent, tries up to 3 times with growing delays, and logs an `ALERT` line if all attempts fail. Each threshold fires once per billing period (a unique row in `usage_alerts`).
+
+Command: `docker compose exec -T app node scripts/test-alerts.js` with the notifier working (`ALERT_NOTIFIER_MODE=ok`):
+
+```
+notifier mode: ok
+ok  request that reaches 80% of the token quota is accepted  15 ms, alert runs in the background
+ok  80% alert recorded  status=sent attempts=1
+ok  100% alert recorded  status=sent attempts=1
+ok  a replayed request does not create another alert
+ok  each threshold fires once per billing period
+all alert checks passed
+```
+
+Command: the same test with the notifier always failing (`ALERT_NOTIFIER_MODE=fail docker compose up -d --wait app`):
+
+```
+notifier mode: fail
+ok  request that reaches 80% of the token quota is accepted  16 ms, alert runs in the background
+ok  80% alert recorded  status=failed attempts=3
+ok  100% alert recorded  status=failed attempts=3
+ok  a replayed request does not create another alert
+ok  each threshold fires once per billing period
+ok  failed delivery keeps the error  notifier unavailable
+all alert checks passed
+```
+
+Server log lines (`docker compose logs app`). The first two lines are from the working notifier, the last two are the failure alerts:
+
+```
+EMAIL to alerts-co: tokens usage reached 80% (80000 of 100000) on the Free plan
+EMAIL to alerts-co: tokens usage reached 100% (100000 of 100000) on the Free plan
+ALERT usage alert delivery failed after 3 attempts: tenant=497513c3-8cbd-4320-b17f-8a6963e54bac metric=tokens threshold=80 error=notifier unavailable
+ALERT usage alert delivery failed after 3 attempts: tenant=497513c3-8cbd-4320-b17f-8a6963e54bac metric=tokens threshold=100 error=notifier unavailable
+```
+
+The request that triggers an alert returns in about 15 ms, so the notification never slows the billable request.
+
+## Acceptance probes
+
+Command, from a clean `docker compose up --build -d --wait`: `docker compose exec -T app node scripts/test-probes.js`
+
+```
+PROBE 1 PASS  same request twice, one usage event, second response mirrors the first
+         201 then 200, identical bodies, usage shows api_calls.used = 1
+PROBE 2 PASS  exact quota boundary returns 429 with a clear message
+         call 1000 allowed, call 1001 gives 429: "Monthly API call quota of 1000 reached on the Free plan"
+PROBE 3 PASS  Checkout webhook flips Free to Pro and GET /usage shows the new limits
+         Free (1000 calls) to Pro (50000 calls, 5000000 tokens) after the signed checkout webhook
+PROBE 4 PASS  forged webhook returns 400, replayed event processed once
+         forged signature gives 400 and the plan stays free; a real event replayed twice is processed once
+PROBE 5 PASS  pinned pricing rules produce the exact totals
+         cached input and reasoning tokens priced correctly, GET /usage total 56751 micro-dollars (0.056751 USD)
+all 5 probes passed
+```
+
+Probe 3 uses a signed webhook so it can run unattended. The real browser payment with the Stripe test card is shown in the Stripe integration section.
