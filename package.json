@@ -12,7 +12,8 @@
     "test:webhooks": "node scripts/test-webhooks.js",
     "test:usage": "node scripts/test-usage.js",
     "seed": "node scripts/seed.js",
-    "test:probes": "node scripts/test-probes.js"
+    "test:probes": "node scripts/test-probes.js",
+    "test:alerts": "node scripts/test-alerts.js"
   },
   "repository": {
     "type": "git",

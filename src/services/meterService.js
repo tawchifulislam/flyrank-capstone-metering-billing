@@ -6,6 +6,7 @@ const usageRepository = require('../repositories/usageRepository');
 const planRepository = require('../repositories/planRepository');
 const { calculateCost } = require('./pricing');
 const { currentPeriod } = require('./period');
+const alertService = require('./alertService');
 
 const tokenField = z.number().int().min(0).max(10000000).default(0);
 
@@ -144,6 +145,7 @@ async function record({ tenant, idempotencyKey, body }) {
     }
 
     await client.query('COMMIT');
+    alertService.dispatch({ tenant, periodStart: period.start, before: used, requestedTokens, plan });
     return { replayed: false, body: result };
   } catch (err) {
     await client.query('ROLLBACK');
