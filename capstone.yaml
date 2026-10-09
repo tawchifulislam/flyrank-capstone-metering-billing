@@ -1,0 +1,10 @@
+run: cp -n .env.example .env && docker compose up --build -d --wait
+seed: docker compose exec -T app npm run seed
+base_url: http://localhost:3001
+endpoints:
+  - GET /health
+  - POST /tenants
+  - POST /generate
+  - GET /usage
+  - POST /billing/checkout
+  - POST /webhooks/stripe
