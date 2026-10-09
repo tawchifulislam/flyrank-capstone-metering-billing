@@ -174,9 +174,9 @@ Each usage event stores its cost per category at the time it is created, so the 
 ## Data model, tests and documentation
 
 - [x] Database includes tenants, plans, subscriptions and usage events, with customer data isolated per tenant (every query filters by the `tenant_id` of the authenticated API key).
-- [ ] README, architecture diagram and setup instructions.
+- [x] README, architecture diagram and setup instructions.
 
-Pending (Phase 4).
+README.md contains the architecture diagram, the exact run and seed commands, and an honest limitations note.
 
 ## Background job: usage alerts
 
