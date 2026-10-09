@@ -203,3 +203,10 @@ Stripe webhooks use the same idea: `stripe_events.id` is the primary key. An eve
 - `repositories`: all SQL, no business rules
 
 A route never talks to the database directly, and a repository never decides an HTTP status.
+
+## Changes since the first design
+
+- `usage_events` also stores the cost per category (`cost_api_calls_micros`, `cost_input_micros`, `cost_cached_input_micros`, `cost_output_micros`, migration 002), so the monthly rollup in `GET /usage` is an exact sum of stored values.
+- `GET /usage` also returns `tokens.by_type` and `cost_usd`.
+- Added a background job for usage alerts at 80% and 100% of a quota, with a `usage_alerts` table (migration 003). It satisfies the shared requirement for at least one background job with retries and a failure alert.
+- Added `GET /tenants/me`, `GET /billing/success`, `GET /billing/cancel` and `GET /health`.
